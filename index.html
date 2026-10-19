@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Rajya Kosha — The State Finance Game</title>
+<meta name="description" content="An interactive game to understand state finances in India: budgets, deficits, GST, and devolution." />
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+<header>
+  <h1>🏛️ Rajya Kosha</h1>
+  <p class="tagline">Can you balance an Indian state's budget?</p>
+</header>
+
+<main id="app">
+
+  <!-- ============ START SCREEN ============ -->
+  <section id="screen-start" class="screen active">
+    <div class="card intro">
+      <h2>Take charge of a state's finances</h2>
+      <p>You are the Finance Minister of an Indian state. Every year you must allocate a limited
+         budget across competing priorities — education, health, infrastructure, agriculture,
+         welfare and more — while keeping the fiscal deficit under control and citizens happy.</p>
+      <p>Learn how states earn revenue (own taxes, share in central taxes, grants),
+         why deficits matter, and how the Finance Commission and GST shape state budgets.</p>
+      <div class="modes">
+        <button class="btn primary" data-mode="sim">🎮 Budget Simulator</button>
+        <button class="btn" data-mode="quiz">🧠 Quiz Mode</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ STATE SELECT ============ -->
+  <section id="screen-state" class="screen">
+    <div class="card">
+      <h2>Choose your state</h2>
+      <p class="hint">Each state has a different fiscal size and character. Figures are illustrative, based on broad recent patterns.</p>
+      <div id="state-list" class="state-grid"></div>
+      <button class="btn back" data-back>← Back</button>
+    </div>
+  </section>
+
+  <!-- ============ SIMULATOR ============ -->
+  <section id="screen-sim" class="screen">
+    <div class="sim-top">
+      <div class="stat"><span>Year</span><b id="sim-year">1</b></div>
+      <div class="stat"><span>State</span><b id="sim-state">—</b></div>
+      <div class="stat"><span>Revenue</span><b id="sim-revenue">₹0</b></div>
+      <div class="stat warn"><span>Deficit</span><b id="sim-deficit">0%</b></div>
+      <div class="stat"><span>Growth</span><b id="sim-growth">0%</b></div>
+      <div class="stat"><span>Approval</span><b id="sim-approval">0%</b></div>
+    </div>
+
+    <div class="card">
+      <h2 id="event-title">Annual Budget</h2>
+      <p id="event-text" class="event-text"></p>
+
+      <div id="allocator">
+        <div class="alloc-header">
+          <span>Allocate <b id="budget-pool">₹0</b> across sectors</span>
+          <span id="alloc-left"></span>
+        </div>
+        <div id="sliders"></div>
+      </div>
+
+      <div class="sim-actions">
+        <button id="btn-levy" class="btn">⚖️ Levy sin tax (+₹2,000 cr, approval −5)</button>
+        <button id="btn-borrow" class="btn">🏦 Borrow more (+₹5,000 cr, deficit +1%)</button>
+        <button id="btn-allocate" class="btn primary">Pass the Budget →</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ YEAR RESULTS ============ -->
+  <section id="screen-result" class="screen">
+    <div class="card">
+      <h2>Year <span id="res-year"></span> outcomes</h2>
+      <div id="res-body" class="res-body"></div>
+      <button id="btn-next-year" class="btn primary">Continue →</button>
+    </div>
+  </section>
+
+  <!-- ============ FINAL ============ -->
+  <section id="screen-final" class="screen">
+    <div class="card">
+      <h2>Your term is over</h2>
+      <div id="final-body"></div>
+      <div class="modes">
+        <button class="btn primary" data-mode="sim">Play again</button>
+        <button class="btn" data-mode="quiz">Try the quiz</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ QUIZ ============ -->
+  <section id="screen-quiz" class="screen">
+    <div class="card">
+      <h2>State Finance Quiz</h2>
+      <div id="quiz-meta" class="quiz-meta"></div>
+      <div id="quiz-body"></div>
+      <div class="quiz-actions">
+        <button id="btn-quiz-next" class="btn primary" disabled>Next →</button>
+        <button class="btn back" data-back>← Menu</button>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  <p>Educational game · Figures are stylised for gameplay · Data inspirations: RBI State Finances, Union Budget documents, Finance Commission reports</p>
+</footer>
+
+<script src="app.js"></script>
+</body>
+</html>
