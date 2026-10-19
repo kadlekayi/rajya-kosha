@@ -132,3 +132,42 @@ input[type=range] { width: 100%; accent-color: var(--accent); }
   .card { padding: 16px; }
   header h1 { font-size: 1.5rem; }
 }
+
+/* CAG notes */
+.cag-notes {
+  background: #2a2410;
+  border: 1px solid #6b5a1e;
+  border-left: 4px solid var(--accent);
+  border-radius: 10px;
+  padding: 12px 16px;
+  margin: 8px 0 4px;
+  font-size: .9rem;
+  line-height: 1.5;
+}
+
+/* HDI panel */
+.hdi-panel {
+  background: var(--card2);
+  border: 1px solid #3a4a73;
+  border-radius: 12px;
+  padding: 14px 18px;
+  margin: 12px 0;
+}
+.hdi-head { display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 8px; }
+.hdi-head h3 { margin: 0; font-size: 1rem; }
+.hdi-score { font-size: 1.05rem; color: var(--muted); }
+.hdi-score b { color: var(--accent); font-size: 1.3rem; }
+.hdi-delta { color: var(--accent2); font-weight: 600; }
+.hdi-delta.neg { color: var(--danger); }
+.hdi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin: 12px 0 4px; }
+.hdi-cell {
+  background: var(--card);
+  border: 1px solid #2c3a5c;
+  border-radius: 10px;
+  padding: 8px 12px;
+  text-align: center;
+}
+.hdi-cell span { display: block; color: var(--muted); font-size: .72rem; text-transform: uppercase; letter-spacing: .5px; }
+.hdi-cell b { font-size: 1.1rem; display: block; }
+.hdi-cell small { color: var(--muted); font-size: .75rem; }
+.hdi-note { color: var(--muted); font-size: .8rem; margin: 8px 0 0; }
