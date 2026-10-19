@@ -50,11 +50,27 @@
       <div class="stat warn"><span>Deficit</span><b id="sim-deficit">0%</b></div>
       <div class="stat"><span>Growth</span><b id="sim-growth">0%</b></div>
       <div class="stat"><span>Approval</span><b id="sim-approval">0%</b></div>
+      <div class="stat"><span>HDI</span><b id="sim-hdi">0.500</b></div>
     </div>
+    <div id="cag-notes" class="cag-notes" hidden></div>
 
     <div class="card">
       <h2 id="event-title">Annual Budget</h2>
       <p id="event-text" class="event-text"></p>
+
+      <div class="hdi-panel">
+        <div class="hdi-head">
+          <h3>🧑‍🏫 Projected human development outcomes</h3>
+          <div class="hdi-score">HDI <b id="hdi-value">0.500</b> <span id="hdi-delta" class="hdi-delta">+0.000</span></div>
+        </div>
+        <div class="hdi-grid">
+          <div class="hdi-cell"><span>Literacy</span><b id="hdi-literacy">—</b><small id="hdi-literacy-delta"></small></div>
+          <div class="hdi-cell"><span>Infant mortality</span><b id="hdi-imr">—</b><small id="hdi-imr-delta"></small></div>
+          <div class="hdi-cell"><span>Life expectancy</span><b id="hdi-le">—</b><small></small></div>
+          <div class="hdi-cell"><span>LFPR (employability)</span><b id="hdi-lfpr">—</b><small></small></div>
+        </div>
+        <p class="hdi-note">Live projection — updates as you allocate. Neglect education or health and these outcomes stall or worsen.</p>
+      </div>
 
       <div id="allocator">
         <div class="alloc-header">

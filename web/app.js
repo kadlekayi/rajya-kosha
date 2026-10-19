@@ -1,51 +1,124 @@
 /* ============ Rajya Kosha — game data & logic ============ */
 
 const STATES = [
-  { id: "mh", name: "Maharashtra", desc: "Industrial powerhouse, high own tax revenue", rev: 400000 },
-  { id: "up", name: "Uttar Pradesh", desc: "Large population, high central transfers", rev: 290000 },
-  { id: "tn", name: "Tamil Nadu", desc: "Manufacturing base, strong GST collections", rev: 230000 },
-  { id: "ka", name: "Karnataka", desc: "IT/services economy, high SGST", rev: 220000 },
-  { id: "wb", name: "West Bengal", desc: "Transfer-dependent, large welfare agenda", rev: 200000 },
-  { id: "br", name: "Bihar", desc: "Low own revenue, big devolution share", rev: 140000 },
+  { id: "mh", name: "Maharashtra", desc: "Industrial powerhouse, high own tax revenue", rev: 400000, gsdp: 3500000, pop: 12.6, literacy: 84.4, imr: 16.0, le: 73.5, lfpr: 53.0 },
+  { id: "up", name: "Uttar Pradesh", desc: "Large population, high central transfers", rev: 290000, gsdp: 2200000, pop: 24.1, literacy: 67.7, imr: 38.0, le: 65.0, lfpr: 44.0 },
+  { id: "tn", name: "Tamil Nadu", desc: "Manufacturing base, strong GST collections", rev: 230000, gsdp: 1800000, pop: 7.7, literacy: 82.9, imr: 15.0, le: 72.5, lfpr: 51.5 },
+  { id: "ka", name: "Karnataka", desc: "IT/services economy, high SGST", rev: 220000, gsdp: 1700000, pop: 6.8, literacy: 77.4, imr: 19.0, le: 70.5, lfpr: 54.0 },
+  { id: "wb", name: "West Bengal", desc: "Transfer-dependent, large welfare agenda", rev: 200000, gsdp: 1400000, pop: 9.9, literacy: 76.6, imr: 22.0, le: 71.0, lfpr: 42.5 },
+  { id: "br", name: "Bihar", desc: "Low own revenue, big devolution share", rev: 140000, gsdp: 650000, pop: 12.7, literacy: 61.8, imr: 46.0, le: 66.5, lfpr: 36.0 },
 ];
 
 /* Revenue split mirrors real state receipts structure roughly:
    own tax ~55%, share in central taxes ~25%, non-tax + grants ~20%. */
 const REVENUE_SPLIT = {
-  ownTax: 0.55,       // SGST, excise on liquor, stamp duty, vehicle tax
-  centralShare: 0.25, // Finance Commission devolution
-  grantsNonTax: 0.20, // central grants, non-tax revenue
+  ownTax: 0.55,
+  centralShare: 0.25,
+  grantsNonTax: 0.20,
 };
 
 const SECTORS = [
-  { id: "edu",    name: "Education",       why: "Schools, teachers, mid-day meals. Drives long-run growth & approval.", growth: 0.06, approval: 2.0 },
-  { id: "health", name: "Health",          why: "PHCs, insurance schemes. High approval impact.", growth: 0.03, approval: 2.5 },
-  { id: "infra",  name: "Infrastructure",  why: "Roads, power, urban transit. Strong growth multiplier.", growth: 0.10, approval: 1.2 },
-  { id: "agri",   name: "Agriculture",     why: "Irrigation, crop support. Big in rural states.", growth: 0.05, approval: 1.8 },
-  { id: "welfare",name: "Welfare schemes", why: "Pensions, housing, food support. Immediate approval boost.", growth: 0.02, approval: 2.2 },
-  { id: "admin",  name: "Administration & policing", why: "Salaries, law & order. Keeps the state running.", growth: 0.02, approval: 0.6 },
+  { id: "education",     name: "Education",       why: "Schools, teachers, mid-day meals. Drives literacy & employability." },
+  { id: "health",        name: "Health",          why: "PHCs, insurance schemes. Drives infant mortality & life expectancy." },
+  { id: "infrastructure",name: "Infrastructure",  why: "Roads, power, transit. Strong growth multiplier, prone to underspend." },
+  { id: "agriculture",   name: "Agriculture",     why: "Irrigation, crop support. Big in rural states." },
+  { id: "welfare",      name: "Welfare schemes",  why: "Pensions, housing, food support. Immediate approval, supports LFPR." },
+  { id: "administration",name: "Administration & policing", why: "Salaries, law and order. Keeps the state running." },
 ];
+const SECTOR_IDS = SECTORS.map(s => s.id);
 
+/* Per-sector spending tendency vs Budget Estimate: [mean, sd].
+   Capital outlay slips most; salaries pay out fully. */
+const SPEND_TENDENCY = {
+  education: [0.90, 0.05],
+  health: [0.88, 0.06],
+  infrastructure: [0.80, 0.08],
+  agriculture: [0.87, 0.07],
+  welfare: [0.95, 0.03],
+  administration: [0.97, 0.02],
+};
+
+/* Revenue realisation vs BE: [mean, sd] */
+const REV_TENDENCY = [0.96, 0.06];
+const CAG_REVISION_SD = 0.015;
+
+/* Shock events, weighted. Effects reference the prototype model. */
 const EVENTS = [
-  { title: "Drought year", text: "Weak monsoon hits farm incomes. Agriculture and welfare spending will matter more this year.", effects: { agri: 1.4, welfare: 1.2, growth: -1.5 } },
-  { title: "Global slowdown", text: "Demand for exports falls. Your own tax collections may disappoint.", effects: { ownTaxMult: 0.92, growth: -1.0 } },
-  { title: "Good GST collections", text: "Consumption is booming — SGST and share in GST are strong this year.", effects: { ownTaxMult: 1.08 } },
-  { title: "Central grant for capital", text: "The Centre offers a tied grant for capital investment — if you allocate enough to infrastructure.", effects: { grant: 3000, needsInfra: 0.22 } },
-  { title: "Election year", text: "Voters are watching closely. Welfare and health spending count extra for approval.", effects: { welfare: 1.3, health: 1.3, approvalMult: 1.3 } },
-  { title: "Pay Commission arrears", text: "Government salary arrears are due. Administration costs are unavoidable and higher.", effects: { admin: 1.3 } },
-  { title: "Disaster relief", text: "Floods damage roads and homes. Centre sends some aid, but you must spend too.", effects: { grant: 4000, approvalMult: 0.9 } },
-  { title: "Normal year", text: "No shocks. A good year to think about the long-term composition of your budget.", effects: {} },
+  { w: 3, key: "normal",   title: "Normal year", text: "No major shocks. A good year for the long view.", effects: {} },
+  { w: 2, key: "drought",  title: "Drought / weak monsoon", text: "Farm incomes fall; agriculture spending costs more, growth dips.",
+    effects: { growth: -1.5, spendUp: { agriculture: 1.2, welfare: 1.15 }, approval: -4, approvalBoost: ["welfare", "agriculture"] } },
+  { w: 2, key: "flood",    title: "Cyclone / floods", text: "Damage to roads and homes; relief spending is unavoidable.",
+    effects: { growth: -1.0, spendUp: { infrastructure: 1.3 }, forcedRelief: 0.03, approval: -6, approvalBoost: ["welfare"] } },
+  { w: 1, key: "heatwave", title: "Extreme heatwave", text: "Heat hits labour productivity and rural demand.",
+    effects: { growth: -0.8, lfprHit: -0.4, approval: -3 } },
+  { w: 1, key: "pandemic",  title: "Pandemic", text: "Health spending surges, economic activity collapses for months.",
+    effects: { growth: -4.0, spendUp: { health: 1.6, welfare: 1.4 }, approval: -8, approvalBoost: ["health"] } },
+  { w: 1, key: "tradewar", title: "Trade war / global slowdown", text: "Exports slump; SGST and own taxes undershoot BE sharply.",
+    effects: { revMult: 0.90, growth: -1.5 } },
+  { w: 1, key: "policy",   title: "Central policy change", text: "The Centre trims a large CSS scheme; your grants fall.",
+    effects: { revMult: 0.95, growth: -0.5, approval: -2 } },
+  { w: 1, key: "gstwindfall", title: "GST windfall", text: "Consumption booms; collections beat estimates.",
+    effects: { revMult: 1.07, growth: 0.5 } },
+  { w: 1, key: "election", title: "Election year", text: "Voters watch closely. Welfare and health count extra for approval.",
+    effects: { approvalBoost: ["welfare", "health"], approvalMult: 1.3 } },
 ];
 
-/* ---------- game state ---------- */
+/* ---------- helpers ---------- */
 let G = null;
-
 const $ = (id) => document.getElementById(id);
 const show = (id) => {
   document.querySelectorAll(".screen").forEach(s => s.classList.remove("active"));
   $(id).classList.add("active");
 };
 const cr = (n) => "₹" + Math.round(n).toLocaleString("en-IN") + " cr";
+const clamp = (n, lo, hi) => Math.max(lo, Math.min(hi, n));
+const gauss = (mean, sd) => {
+  let u = 0, v = 0;
+  while (u === 0) u = Math.random();
+  while (v === 0) v = Math.random();
+  return mean + sd * Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
+};
+
+function drawEvent() {
+  const total = EVENTS.reduce((a, e) => a + e.w, 0);
+  let r = Math.random() * total;
+  for (const e of EVENTS) {
+    r -= e.w;
+    if (r <= 0) return e;
+  }
+  return EVENTS[0];
+}
+
+/* ---------- HDI sub-model (ported from prototype) ---------- */
+function projectHDI(g, alloc) {
+  const pop = g.state.pop * 100;
+  const eduPc = alloc.education / pop;
+  const healthPc = alloc.health / pop;
+
+  let litGain = 2.5 * (eduPc / 40) / (1 + eduPc / 150) - 0.15;
+  litGain = Math.max(-0.5, litGain);
+  const literacy = clamp(g.literacy + litGain, 40, 99);
+
+  let imrDrop = 4.0 * (healthPc / 30) / (1 + healthPc / 100) - 0.2;
+  imrDrop = Math.max(-1.0, imrDrop);
+  const imr = Math.max(8, g.imr - imrDrop);
+
+  const le = 85.0 - 0.35 * imr;
+
+  let lfprDelta = 0.35 * (eduPc / 40) + 0.15 * (alloc.welfare / pop / 30) - 0.1;
+  lfprDelta += 0.05 * (g.growth - 5.0);
+  const lfpr = clamp(g.lfpr + lfprDelta, 20, 75);
+
+  const gdppc = g.gsdp * 1e7 / (g.state.pop * 1e7);
+  let incIdx = (Math.log(gdppc) - Math.log(20000)) / (Math.log(400000) - Math.log(20000));
+  incIdx = clamp(incIdx, 0, 1);
+
+  const eduIdx = literacy / 100 * 0.6 + lfpr / 100 * 0.4;
+  const healthIdx = (le - 25) / 60;
+  const hdi = Math.cbrt(incIdx * eduIdx * healthIdx);
+
+  return { literacy, imr, le, lfpr, hdi, litGain, imrDrop };
+}
 
 /* ---------- mode select ---------- */
 document.querySelectorAll("[data-mode]").forEach(b =>
@@ -75,9 +148,17 @@ function startSim(state) {
     totalYears: 5,
     baseRev: state.rev,
     rev: state.rev,
+    available: state.rev,
+    gsdp: state.gsdp,
     growth: 6.0,
     approval: 55,
-    deficit: 3.0,       // % of GSDP
+    deficit: 3.0,
+    literacy: state.literacy,
+    imr: state.imr,
+    le: state.le,
+    lfpr: state.lfpr,
+    pendingCag: [],
+    lastProjection: null,
     usedLevy: 0,
     usedBorrow: 0,
     log: [],
@@ -87,31 +168,70 @@ function startSim(state) {
 }
 
 function newYear() {
-  G.usedLevy = 0; G.usedBorrow = 0;
-  const ev = EVENTS[Math.floor(Math.random() * EVENTS.length)];
-  G.event = ev;
+  G.usedLevy = 0;
+  G.usedBorrow = 0;
+  G.event = drawEvent();
+
+  // CAG actuals for past years land now and adjust the pool
+  let cagNotes = [];
+  while (G.pendingCag.length && G.pendingCag[0].readyYear <= G.year) {
+    const rep = G.pendingCag.shift();
+    const gap = rep.revActual - rep.revBe;
+    if (gap < 0) {
+      G.available += gap;
+      G.approval -= 2;
+      G.log.push(`Year ${rep.year} CAG: receipts fell short of BE by ${cr(-gap)}; your pool absorbs it.`);
+    } else {
+      G.available += 0.5 * gap;
+      G.log.push(`Year ${rep.year} CAG: receipts beat BE by ${cr(gap)}.`);
+    }
+    cagNotes.push(rep);
+  }
 
   $("sim-year").textContent = G.year + " / " + G.totalYears;
   $("sim-state").textContent = G.state.name;
-  $("sim-revenue").textContent = cr(G.rev);
+  $("sim-revenue").textContent = cr(G.available);
   $("sim-deficit").textContent = G.deficit.toFixed(1) + "%";
   $("sim-growth").textContent = G.growth.toFixed(1) + "%";
   $("sim-approval").textContent = Math.round(G.approval) + "%";
+  $("sim-hdi").textContent = (G.lastProjection ? G.lastProjection.hdi : baseHDI()).toFixed(3);
 
-  $("event-title").textContent = `Year ${G.year} — ${ev.title}`;
-  $("event-text").textContent = ev.text;
+  $("event-title").textContent = `Year ${G.year} — ${G.event.title}`;
+  $("event-text").textContent = G.event.text;
+
+  const cagBox = $("cag-notes");
+  if (cagNotes.length) {
+    cagBox.hidden = false;
+    cagBox.innerHTML = "<b>📋 CAG report" + (cagNotes.length > 1 ? "s" : "") + " out:</b><br>" +
+      cagNotes.map(rep =>
+        `Year ${rep.year}: budgeted receipts ${cr(rep.revBe)}, actual ${cr(rep.revActual)} · ` +
+        `budgeted spend ${cr(rep.spendBe)}, actual ${cr(rep.spendRe)}` +
+        (rep.underspend > 0 ? ` (underspent ${cr(rep.underspend)})` : "")
+      ).join("<br>");
+  } else {
+    cagBox.hidden = true;
+  }
+
   $("btn-levy").disabled = false;
   $("btn-borrow").disabled = false;
-
   buildSliders();
   show("screen-sim");
+}
+
+function baseHDI() {
+  const gdppc = G.gsdp * 1e7 / (G.state.pop * 1e7);
+  let incIdx = (Math.log(gdppc) - Math.log(20000)) / (Math.log(400000) - Math.log(20000));
+  incIdx = clamp(incIdx, 0, 1);
+  const eduIdx = G.literacy / 100 * 0.6 + G.lfpr / 100 * 0.4;
+  const healthIdx = (G.le - 25) / 60;
+  return Math.cbrt(incIdx * eduIdx * healthIdx);
 }
 
 function buildSliders() {
   const wrap = $("sliders");
   wrap.innerHTML = "";
-  const pool = Math.round(G.rev / 1000); // sliders in ₹1,000 cr units
-  $("budget-pool").textContent = cr(G.rev);
+  const pool = Math.round(G.available / 1000);
+  $("budget-pool").textContent = cr(G.available);
   SECTORS.forEach(sec => {
     const div = document.createElement("div");
     div.className = "sector";
@@ -141,98 +261,157 @@ function currentAllocations() {
 
 function updateAllocLeft() {
   const alloc = currentAllocations();
-  const spent = Object.values(alloc).reduce((a, b) => a + b, 0);
-  const left = G.rev - spent;
+  const spent = SECTOR_IDS.reduce((a, s) => a + alloc[s], 0);
+  const left = G.available - spent;
   const el = $("alloc-left");
   el.textContent = (left >= 0 ? "Remaining: " : "Over by: ") + cr(Math.abs(left));
   el.classList.toggle("over", left < 0);
   SECTORS.forEach(s => ($("amt-" + s.id).textContent = cr(alloc[s.id])));
+
+  // Live HDI projection, visible while allocating
+  const proj = projectHDI(G, alloc);
+  $("hdi-literacy").textContent = proj.literacy.toFixed(1) + "%";
+  $("hdi-literacy-delta").textContent = (proj.litGain >= 0 ? "+" : "") + proj.litGain.toFixed(2);
+  $("hdi-imr").textContent = proj.imr.toFixed(1);
+  $("hdi-imr-delta").textContent = (proj.imrDrop >= 0 ? "−" : "+") + Math.abs(proj.imrDrop).toFixed(2);
+  $("hdi-le").textContent = proj.le.toFixed(1) + " yrs";
+  $("hdi-lfpr").textContent = proj.lfpr.toFixed(1) + "%";
+  $("hdi-value").textContent = proj.hdi.toFixed(3);
+  const hdiDelta = proj.hdi - baseHDI();
+  const hdiDeltaEl = $("hdi-delta");
+  hdiDeltaEl.textContent = (hdiDelta >= 0 ? "+" : "") + hdiDelta.toFixed(3);
+  hdiDeltaEl.classList.toggle("neg", hdiDelta < 0);
+
   $("btn-allocate").disabled = left < 0;
 }
 
 $("btn-levy").addEventListener("click", () => {
   if (G.usedLevy >= 2) return;
   G.usedLevy++;
-  G.rev += 2000;
+  G.available += 2000;
   G.approval -= 5;
   G.log.push("Levied an extra 'sin tax' on liquor.");
-  $("sim-revenue").textContent = cr(G.rev);
-  $("sim-approval").textContent = Math.round(G.approval) + "%";
-  $("budget-pool").textContent = cr(G.rev);
-  updateAllocLeft();
-  if (G.usedLevy >= 2) $("btn-levy").disabled = true;
+  refreshMoney();
 });
 
 $("btn-borrow").addEventListener("click", () => {
   if (G.usedBorrow >= 2) return;
   G.usedBorrow++;
-  G.rev += 5000;
+  G.available += 5000;
   G.deficit += 1.0;
   G.log.push("Borrowed beyond the FRBM glide path (+₹5,000 cr).");
-  $("sim-revenue").textContent = cr(G.rev);
-  $("sim-deficit").textContent = G.deficit.toFixed(1) + "%";
-  $("budget-pool").textContent = cr(G.rev);
-  updateAllocLeft();
-  if (G.usedBorrow >= 2) $("btn-borrow").disabled = true;
+  refreshMoney();
 });
+
+function refreshMoney() {
+  $("sim-revenue").textContent = cr(G.available);
+  $("sim-approval").textContent = Math.round(G.approval) + "%";
+  $("sim-deficit").textContent = G.deficit.toFixed(1) + "%";
+  $("budget-pool").textContent = cr(G.available);
+  updateAllocLeft();
+  if (G.usedLevy >= 2) $("btn-levy").disabled = true;
+  if (G.usedBorrow >= 2) $("btn-borrow").disabled = true;
+}
 
 $("btn-allocate").addEventListener("click", () => {
-  const alloc = currentAllocations();
-  resolveYear(alloc);
+  resolveYear(currentAllocations());
 });
 
+/* ---------- year resolution (BE -> RE -> CAG) ---------- */
 function resolveYear(alloc) {
-  const ev = G.event || { effects: {} };
-  const spent = Object.values(alloc).reduce((a, b) => a + b, 0);
-  const left = G.rev - spent;
+  const sh = G.event.effects || {};
 
-  // growth from sector allocation
-  let growthDelta = 0;
-  SECTORS.forEach(s => {
-    const share = alloc[s.id] / G.rev;
-    growthDelta += s.growth * share * 10; // scaled
+  // --- spending: Revised Estimate vs Budget Estimate ---
+  const spendBe = SECTOR_IDS.reduce((a, s) => a + alloc[s], 0);
+  const forced = (sh.forcedRelief || 0) * G.available;
+  let reSpend = 0;
+  const actuals = {};
+  SECTOR_IDS.forEach(sec => {
+    const [mean, sd] = SPEND_TENDENCY[sec];
+    const mult = (sh.spendUp && sh.spendUp[sec]) || 1;
+    const f = Math.max(0.5, gauss(mean, sd)) * mult;
+    actuals[sec] = alloc[sec] * f;
+    reSpend += actuals[sec];
   });
-  if (ev.effects.growth) growthDelta += ev.effects.growth;
-  G.growth = Math.max(0.5, G.growth * 0.6 + (4 + growthDelta) * 0.4);
+  reSpend += forced;
+  const underspend = spendBe - (reSpend - forced);
 
-  // approval from sector allocation
-  let approvalDelta = 0;
-  SECTORS.forEach(s => {
-    const share = alloc[s.id] / G.rev;
-    approvalDelta += s.approval * share * 5;
+  // --- revenue: actual collections vs BE ---
+  const revMult = sh.revMult || 1;
+  const realF = Math.max(0.70, gauss(...REV_TENDENCY)) * revMult;
+  const revRe = G.available * realF;
+  let revCag = revRe * (1 + gauss(0, CAG_REVISION_SD));
+  revCag = Math.max(revCag, 0.75 * G.available);
+
+  // --- growth ---
+  let gdelta = 0;
+  const shares = {};
+  SECTOR_IDS.forEach(s => { shares[s] = alloc[s] / Math.max(G.available, 1); });
+  gdelta += 10 * shares.infrastructure;
+  gdelta += 3.6 * shares.education;
+  gdelta += 2.5 * shares.agriculture;
+  gdelta += 0.9 * shares.health;
+  gdelta += 0.4 * shares.welfare;
+  gdelta += 0.4 * shares.administration;
+  gdelta += (sh.growth || 0);
+  G.growth = Math.max(0.5, G.growth * 0.6 + (4 + gdelta) * 0.4);
+
+  // --- HDI outcomes realise ---
+  const proj = projectHDI(G, alloc);
+  if (sh.lfprHit) proj.lfpr = clamp(proj.lfpr + sh.lfprHit, 20, 75);
+  G.literacy = proj.literacy;
+  G.imr = proj.imr;
+  G.le = proj.le;
+  G.lfpr = proj.lfpr;
+  G.lastProjection = proj;
+
+  // --- approval ---
+  let adelta = 40 * shares.welfare + 30 * shares.health
+             + 20 * shares.education + 20 * shares.agriculture
+             + 12 * shares.infrastructure;
+  adelta += (sh.approval || 0);
+  (sh.approvalBoost || []).forEach(sec => { adelta += shares[sec] * 5; });
+  if (sh.approvalMult) adelta *= sh.approvalMult;
+  if (proj.imrDrop < 0) adelta -= 4;   // infant mortality rose on your watch
+  if (proj.litGain < 0.3) adelta -= 2;  // schools visibly neglected
+  if (G.deficit > 3) adelta -= (G.deficit - 3) * 3;
+  G.approval = clamp(G.approval * 0.75 + (G.approval + adelta) * 0.25, 0, 100);
+
+  // --- deficit on GSDP ---
+  G.gsdp *= (1 + G.growth / 100);
+  G.deficit = Math.max(0, (reSpend - revRe) / Math.max(G.gsdp, 1) * 100);
+
+  // --- queue CAG report, 2-year lag ---
+  G.pendingCag.push({
+    year: G.year,
+    readyYear: G.year + 2,
+    revBe: G.available, revRe, revActual: revCag,
+    spendBe, spendRe: reSpend, underspend,
   });
-  if (ev.effects.approvalMult) approvalDelta *= ev.effects.approvalMult;
-  if (G.deficit > 3) approvalDelta -= (G.deficit - 3) * 2; // overspending hurts credibility
-  approvalDelta += (left > 0 ? 1 : -2); // unspent money is also wasteful
-  G.approval = Math.max(0, Math.min(100, G.approval * 0.7 + (G.approval + approvalDelta) * 0.3));
 
-  // finances
-  const ownTaxMult = (ev.effects.ownTaxMult || 1);
-  const taxPart = G.rev * REVENUE_SPLIT.ownTax * ownTaxMult;
-  const otherPart = G.rev * (1 - REVENUE_SPLIT.ownTax);
-  const nextRev = (taxPart * (1 + G.growth / 100) + otherPart * 1.04);
+  // --- next year's receipts ---
+  G.rev = G.available * (1 + G.growth / 100) * Math.pow(realF, 0.3);
+  G.available = G.rev;
 
-  let grant = ev.effects.grant || 0;
-  if (ev.effects.needsInfra && alloc.infra / G.rev >= ev.effects.needsInfra) {
-    G.log.push("Met the Centre's co-investment condition and won the capital grant.");
-  } else if (ev.effects.needsInfra) {
-    grant = 0;
-    G.log.push("Missed the capital grant — infrastructure allocation was too low.");
-  }
-  G.rev = Math.round(nextRev + grant);
-  G.deficit = Math.max(0, G.deficit - 0.2 + (G.usedBorrow ? 0 : 0) + (left > 0 ? -0.1 : 0.3));
-
-  // outcome narrative
+  // --- outcome narrative ---
   const lines = [];
-  lines.push(row("Spent", cr(spent)));
-  lines.push(row("Unspent funds", left >= 0 ? cr(left) : "0 (over-allocated)"));
-  lines.push(row("GSDP growth", `${G.growth.toFixed(1)}%`, "up"));
-  lines.push(row("Public approval", `${Math.round(G.approval)}%`, G.approval >= 50 ? "up" : "down"));
-  lines.push(row("Fiscal deficit", `${G.deficit.toFixed(1)}% of GSDP`, G.deficit <= 3 ? "up" : "down"));
-  lines.push(row("Next year revenue", cr(G.rev), "up"));
+  lines.push(row("Budget (BE)", cr(spendBe)));
+  lines.push(row("Actual spend (RE)", cr(reSpend) + (underspend > 0 ? ` (−${cr(underspend)} vs BE)` : ""), underspend > 0 ? "" : "up"));
+  lines.push(row("Receipts (RE)", cr(revRe) + (realF < 1 ? " — missed BE" : ""), realF < 1 ? "down" : "up"));
+  lines.push(row("GSDP growth", G.growth.toFixed(1) + "%", "up"));
+  lines.push(row("Public approval", Math.round(G.approval) + "%", G.approval >= 50 ? "up" : "down"));
+  lines.push(row("Fiscal deficit", G.deficit.toFixed(1) + "% of GSDP", G.deficit <= 3 ? "up" : "down"));
+  lines.push(row("Literacy", proj.literacy.toFixed(1) + "%", proj.litGain >= 0.3 ? "up" : "down"));
+  lines.push(row("Infant mortality", proj.imr.toFixed(1) + " per 1,000", proj.imrDrop >= 0.5 ? "up" : "down"));
+  lines.push(row("Life expectancy", proj.le.toFixed(1) + " yrs", "up"));
+  lines.push(row("LFPR", proj.lfpr.toFixed(1) + "%", proj.lfpr >= G.lfpr ? "up" : "down"));
+  lines.push(row("HDI", proj.hdi.toFixed(3), proj.hdi >= baseHDI() ? "up" : "down"));
+  lines.push(row("Next year's BE receipts", cr(G.rev), "up"));
   if (G.deficit > 3) lines.push(`<p class="verdict bad">⚠️ Deficit above 3% — markets and the RBI will frown.</p>`);
-  if (G.approval < 40) lines.push(`<p class="verdict bad">😠 Voters are unhappy.</p>`);
-  if (G.approval >= 60 && G.deficit <= 3) lines.push(`<p class="verdict good">✅ A disciplined and popular budget.</p>`);
+  if (G.approval < 40) lines.push(`<p class="verdict bad">😡 Voters are unhappy.</p>`);
+  if (proj.litGain < 0.3) lines.push(`<p class="verdict bad">🏫 Education spending too low — literacy gains stalled.</p>`);
+  if (proj.imrDrop < 0) lines.push(`<p class="verdict bad">🏥 Health spending too low — infant mortality worsened.</p>`);
+  if (G.approval >= 60 && G.deficit <= 3 && proj.hdi >= 0.6) lines.push(`<p class="verdict good">✅ A disciplined, popular, and human-development friendly budget.</p>`);
 
   $("res-year").textContent = G.year;
   $("res-body").innerHTML = lines.join("");
@@ -249,21 +428,32 @@ $("btn-next-year").addEventListener("click", () => {
 });
 
 function finishSim() {
-  let score = Math.round(G.approval * 1.5 + G.growth * 5 - Math.max(0, G.deficit - 3) * 10 + (G.rev / G.baseRev - 1) * 100);
+  const proj = G.lastProjection || { hdi: baseHDI() };
+  let score = Math.round(
+    G.approval * 1.0 + G.growth * 6
+    - Math.max(0, G.deficit - 3) * 12
+    + (proj.hdi - 0.5) * 400
+  );
   score = Math.max(0, score);
   let title, verdictClass;
-  if (score > 120) { title = "🏆 Fiscal Star"; verdictClass = "good"; }
-  else if (score > 80) { title = "💪 Steady Hand"; verdictClass = "good"; }
-  else if (score > 50) { title = "🙂 Muddled Through"; verdictClass = ""; }
+  if (score > 180) { title = "🏆 Fiscal Star"; verdictClass = "good"; }
+  else if (score > 140) { title = "💪 Steady Hand"; verdictClass = "good"; }
+  else if (score > 100) { title = "🙂 Muddled Through"; verdictClass = ""; }
   else { title = "💀 Austerity and Anger"; verdictClass = "bad"; }
 
   if (G.deficit <= 3 && G.approval >= 55) G.badges.push("FRBM discipline");
   if (G.growth >= 7) G.badges.push("Growth engine");
   if (G.approval >= 65) G.badges.push("People's minister");
-  if (G.rev / G.baseRev >= 1.25) G.badges.push("Revenue champion");
+  if (proj.hdi >= 0.7) G.badges.push("Human development champion");
+  if (proj.literacy - G.state.literacy >= 4) G.badges.push("Shiksha hero");
 
   $("final-body").innerHTML = `
     <p class="verdict ${verdictClass}">${title} — score ${score}</p>
+    ${row("Final HDI", proj.hdi.toFixed(3))}
+    ${row("Literacy", G.literacy.toFixed(1) + "% (from " + G.state.literacy + "%)")}
+    ${row("Infant mortality", G.imr.toFixed(1) + " (from " + G.state.imr + ")")}
+    ${row("Life expectancy", G.le.toFixed(1) + " yrs")}
+    ${row("LFPR", G.lfpr.toFixed(1) + "%")}
     ${row("Final growth", G.growth.toFixed(1) + "%")}
     ${row("Final approval", Math.round(G.approval) + "%")}
     ${row("Final deficit", G.deficit.toFixed(1) + "%")}
@@ -336,6 +526,24 @@ const QUIZ = [
     opts: ["NITI Aayog", "Finance Commission (Article 275)", "RBI", "GST Council"],
     a: 1,
     why: "Article 275 empowers Parliament to provide grants-in-aid to states on the Finance Commission's recommendation.",
+  },
+  {
+    q: "In Indian budget documents, what does BE → RE → Actuals refer to?",
+    opts: ["Basic Estimate, Revised Estimate, Actuals", "Budget Estimate, Revised Estimate, Actuals (audited by CAG)", "Balance Estimate, Revenue Estimate, Actuals", "Budget Expenditure, Revenue Expenditure, Actuals"],
+    a: 1,
+    why: "BE is what you budget at year start, RE is the mid-year revision, and Actuals are the CAG-audited final figures that arrive with a lag.",
+  },
+  {
+    q: "Why do state budgets typically underspend against Budget Estimates?",
+    opts: ["States hoard cash deliberately", "Capital projects slip, procurement delays, and schemes scale up slower than planned", "The Centre cancels schemes mid-year", "Underspending is legally required"],
+    a: 1,
+    why: "Capital outlay is the biggest source of underspend; salaries and interest always pay out fully.",
+  },
+  {
+    q: "The HDI education component combines literacy (or expected/mean years of schooling) with…",
+    opts: ["Education budget as % of GSDP", "School enrolment only", "Labour force participation related indicators in this game's stylised version", "Number of universities"],
+    a: 2,
+    why: "In the real UNDP HDI it's mean and expected years of schooling; this game stylises it with literacy and LFPR (employability).",
   },
 ];
 
